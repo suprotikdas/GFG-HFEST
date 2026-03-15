@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.git/
+*.zip
+*.md
+.dockerignore
+cloudbuild.yaml
+deploy.ps1

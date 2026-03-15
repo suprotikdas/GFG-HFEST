@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Data Cosmos Explorer</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config={theme:{extend:{colors:{cosmos:'#060810',neonCyan:'#00F3FF',neonPurple:'#BC13FE',glass:'rgba(6,8,16,0.7)'},fontFamily:{sans:['Inter','sans-serif'],mono:['JetBrains Mono','monospace']}}}}
+</script>
+<style>
+/* ── ORIGINAL global styles (unchanged) ── */
+body,html{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background-color:#060810;color:#E2E8F0;font-family:'Inter',sans-serif;}
+.glassmorphism{background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);box-shadow:0 8px 32px 0 rgba(0,0,0,0.8);}
+.neon-border-cyan{border:1px solid rgba(0,243,255,0.3);box-shadow:0 0 15px rgba(0,243,255,0.1);}
+.glow-text-cyan{text-shadow:0 0 10px rgba(0,243,255,0.8);}
+.glow-text-purple{text-shadow:0 0 10px rgba(188,19,254,0.8);}
+.animated-gradient-bg{background:radial-gradient(circle at 50% 50%,#0a0c1e 0%,#060810 100%);}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(0,243,255,0.3);border-radius:10px;}
+canvas{display:block;position:absolute;top:0;left:0;z-index:0;}
+.hud-overlay{pointer-events:none;z-index:10;}.hud-element{pointer-events:auto;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.scanning-line{height:2px;width:100%;background:linear-gradient(90deg,transparent,#00F3FF,transparent);position:absolute;top:0;animation:scan 3s infinite linear;}
+@keyframes scan{0%{top:0%}100%{top:100%}}
+.sidebar-transition{transition:transform 0.5s cubic-bezier(0.4,0,0.2,1);}
+
+/* ── Integration styles ── */
+.bi-result{animation:slideup 0.3s ease-out;}
+@keyframes slideup{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.bi-load-bar{height:2px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;margin-bottom:14px;}
+.bi-load-bar-inner{height:100%;background:linear-gradient(90deg,#00F3FF,#BC13FE);animation:loadp 1.4s ease-in-out infinite;}
+@keyframes loadp{0%{width:0%;margin-left:0}50%{width:65%;margin-left:17%}100%{width:0%;margin-left:100%}}
+.bi-step{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:rgba(0,243,255,0.5);margin-bottom:7px;opacity:0;animation:fadein 0.35s forwards;}
+@keyframes fadein{to{opacity:1}}
+.bi-step-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(0,243,255,0.2);display:flex;align-items:center;justify-content:center;font-size:0.55rem;flex-shrink:0;transition:all 0.3s;}
+.bi-step-dot.spin{border-color:#00F3FF;animation:spin 1s linear infinite;}
+.bi-step-dot.done{background:#00FF9D;border-color:#00FF9D;color:#060810;font-weight:700;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bi-q-banner{background:linear-gradient(90deg,rgba(0,243,255,0.07),transparent);border-left:3px solid #00F3FF;border-radius:0 8px 8px 0;padding:9px 14px;margin-bottom:12px;}
+.bi-q-lbl{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(0,243,255,0.4);text-transform:uppercase;letter-spacing:0.1em;}
+.bi-q-txt{font-size:0.95rem;font-weight:600;color:#00F3FF;}
+.bi-sql-block{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.07);border-left:3px solid #BC13FE;border-radius:8px;overflow:hidden;margin-bottom:12px;}
+.bi-sql-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.3);text-transform:uppercase;transition:background 0.15s;}
+.bi-sql-hdr:hover{background:rgba(255,255,255,0.02);}
+.bi-sql-body{display:none;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:0.74rem;color:#86EFAC;white-space:pre-wrap;line-height:1.7;border-top:1px solid rgba(255,255,255,0.06);}
+.bi-sql-body.open{display:block;}
+.bi-safe-tag{background:rgba(0,255,157,0.07);color:#00FF9D;border:1px solid rgba(0,255,157,0.2);border-radius:10px;padding:1px 8px;font-size:0.57rem;font-weight:600;}
+.bi-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.bi-sc{background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.06);border-top:2px solid transparent;border-radius:8px;padding:10px 12px;transition:transform 0.15s;}
+.bi-sc:hover{transform:translateY(-2px);}
+.bi-sc.c1{border-top-color:#00F3FF}.bi-sc.c2{border-top-color:#BC13FE}.bi-sc.c3{border-top-color:#00FF9D}.bi-sc.c4{border-top-color:#FF3860}
+.bi-sc-lbl{font-family:'JetBrains Mono',monospace;font-size:0.57rem;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;}
+.bi-sc-val{font-size:1.1rem;font-weight:800;}
+.bi-sc.c1 .bi-sc-val{color:#00F3FF}.bi-sc.c2 .bi-sc-val{color:#D45EFF}.bi-sc.c3 .bi-sc-val{color:#00FF9D}.bi-sc.c4 .bi-sc-val{color:#FF6680}
+.bi-sc-sub{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(255,255,255,0.2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bi-chart-card{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.07);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+.bi-chart-tb{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.05);}
+.bi-tabs{display:flex;gap:4px;flex-wrap:wrap;}
+.bi-tab{font-family:'JetBrains Mono',monospace;font-size:0.57rem;text-transform:uppercase;letter-spacing:0.05em;background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);padding:3px 9px;border-radius:4px;cursor:pointer;transition:all 0.15s;}
+.bi-tab:hover{border-color:#00F3FF;color:#00F3FF;}.bi-tab.active{background:rgba(0,243,255,0.1);border-color:#00F3FF;color:#00F3FF;}
+.bi-chart-body{padding:10px;}.bi-chart-body img{width:100%;border-radius:6px;display:block;}
+.bi-chart-reason{padding:5px 12px 8px;font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.2);border-top:1px solid rgba(255,255,255,0.04);}
+.bi-table-card{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.07);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+.bi-table-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.05);font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.3);}
+.bi-tbl-scroll{overflow-x:auto;}
+.bi-tbl table{width:100%;border-collapse:collapse;font-size:0.74rem;}
+.bi-tbl th{background:rgba(0,243,255,0.07);color:#00F3FF;font-family:'JetBrains Mono',monospace;font-size:0.57rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:7px 10px;text-align:left;border-bottom:1px solid rgba(0,243,255,0.15);white-space:nowrap;}
+.bi-tbl td{padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);color:#E2E8F0;}
+.bi-tbl tr:last-child td{border-bottom:none;}
+.bi-tbl tr:nth-child(even) td{background:rgba(255,255,255,0.01);}
+.bi-tbl tr:hover td{background:rgba(0,243,255,0.03);}
+.bi-num{text-align:right;font-family:'JetBrains Mono',monospace;font-size:0.67rem;color:#00F3FF;}
+/* Error card — friendly, not scary */
+.bi-err-card{border-radius:10px;padding:16px;margin-bottom:10px;border:1px solid;}
+.bi-err-card.warn{background:rgba(255,183,0,0.06);border-color:rgba(255,183,0,0.3);border-left:4px solid #FFB700;}
+.bi-err-card.fail{background:rgba(255,56,96,0.05);border-color:rgba(255,56,96,0.3);border-left:4px solid #FF3860;}
+.bi-err-card.info{background:rgba(0,243,255,0.04);border-color:rgba(0,243,255,0.2);border-left:4px solid #00F3FF;}
+.bi-err-icon{font-size:1.6rem;margin-bottom:8px;}
+.bi-err-title{font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:700;margin-bottom:5px;}
+.bi-err-card.warn .bi-err-title{color:#FFB700;}
+.bi-err-card.fail .bi-err-title{color:#FF3860;}
+.bi-err-card.info .bi-err-title{color:#00F3FF;}
+.bi-err-msg{font-size:0.82rem;color:rgba(255,255,255,0.6);line-height:1.5;margin-bottom:8px;}
+.bi-err-hint{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:rgba(255,255,255,0.35);background:rgba(0,0,0,0.3);border-radius:6px;padding:8px 10px;}
+.bi-err-sql{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:#86EFAC;background:rgba(0,0,0,0.4);border-radius:6px;padding:8px 10px;margin-top:6px;white-space:pre-wrap;}
+.bi-retry-btn{margin-top:10px;background:rgba(0,243,255,0.1);border:1px solid rgba(0,243,255,0.3);color:#00F3FF;font-family:'JetBrains Mono',monospace;font-size:0.65rem;padding:6px 14px;border-radius:6px;cursor:pointer;transition:all 0.15s;text-transform:uppercase;}
+.bi-retry-btn:hover{background:rgba(0,243,255,0.2);}
+.bi-ibtn{background:transparent;border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.3);font-family:'JetBrains Mono',monospace;font-size:0.57rem;padding:3px 8px;border-radius:4px;cursor:pointer;transition:all 0.15s;}
+.bi-ibtn:hover{border-color:#00F3FF;color:#00F3FF;}
+.bi-qrow{display:flex;gap:8px;margin-bottom:6px;}
+.bi-qinput{flex:1;background:rgba(0,0,0,0.5);border:1px solid rgba(0,243,255,0.18);color:#00F3FF;font-family:'JetBrains Mono',monospace;font-size:0.77rem;padding:10px 14px;border-radius:8px;outline:none;caret-color:#00F3FF;transition:border-color 0.2s,box-shadow 0.2s;}
+.bi-qinput::placeholder{color:rgba(255,255,255,0.15);}
+.bi-qinput:focus{border-color:#00F3FF;box-shadow:0 0 0 3px rgba(0,243,255,0.07);}
+.bi-runbtn{background:linear-gradient(135deg,#00F3FF,#0099AA);color:#060810;font-family:'JetBrains Mono',monospace;font-size:0.65rem;font-weight:700;letter-spacing:0.08em;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;transition:all 0.15s;text-transform:uppercase;}
+.bi-runbtn:hover{transform:translateY(-1px);box-shadow:0 0 18px rgba(0,243,255,0.28);}
+.bi-runbtn:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
+.bi-hint{font-family:'JetBrains Mono',monospace;font-size:0.57rem;color:rgba(255,255,255,0.2);margin-bottom:14px;}
+.bi-stat-mini{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:7px 10px;}
+.bi-stat-mini-lbl{font-family:'JetBrains Mono',monospace;font-size:0.54rem;color:rgba(255,255,255,0.25);text-transform:uppercase;}
+.bi-stat-mini-val{font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:700;}
+#bi-fs{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.94);z-index:9999;align-items:center;justify-content:center;padding:30px;}
+#bi-fs.open{display:flex;}
+#bi-fs-x{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#E2E8F0;width:32px;height:32px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.9rem;}
+.hud-live-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+.hud-live-card{background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:20px;}
+.hud-live-card.cyan{border-left:4px solid #00F3FF;}.hud-live-card.purple{border-left:4px solid #BC13FE;}
+.hud-live-card.yellow{border-left:4px solid #EAB308;}.hud-live-card.green{border-left:4px solid #00FF9D;}
+.hud-lc-lbl{font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;}
+.hud-lc-val{font-size:1.5rem;font-weight:800;color:white;}.hud-lc-sub{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.3);margin-top:4px;}
+.api-dot{width:8px;height:8px;border-radius:50%;background:#00FF9D;box-shadow:0 0 8px #00FF9D;animation:pulse 2s infinite;display:inline-block;}
+.api-dot.off{background:#FF3860;box-shadow:0 0 8px #FF3860;}
+.growth-pos{color:#00FF9D;font-weight:700;}.growth-neg{color:#FF3860;font-weight:700;}.growth-neu{color:#FFD600;font-weight:700;}
+.overview-panel{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:16px;margin-bottom:16px;}
+.overview-title{font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:rgba(0,243,255,0.6);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;}
+.overview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.ov-item{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:10px 12px;}
+.ov-lbl{font-family:'JetBrains Mono',monospace;font-size:0.57rem;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;}
+.ov-val{font-family:'JetBrains Mono',monospace;font-size:0.9rem;font-weight:700;color:#E2E8F0;}
+.ov-val.cyan{color:#00F3FF;}.ov-val.purple{color:#BC13FE;}.ov-val.green{color:#00FF9D;}.ov-val.yellow{color:#FFD600;}
+
+/* ── CHAT PANEL styles ── */
+#chat-panel{position:fixed;right:0;top:0;height:100%;width:380px;z-index:70;transform:translateX(100%);transition:transform 0.45s cubic-bezier(0.4,0,0.2,1);}
+#chat-panel.open{transform:translateX(0);}
+.chat-wrap{height:100%;display:flex;flex-direction:column;background:#080C14;border-left:1px solid rgba(0,243,255,0.15);}
+.chat-header{padding:16px 18px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.chat-title{font-family:'JetBrains Mono',monospace;font-size:0.78rem;font-weight:700;color:#00F3FF;letter-spacing:0.08em;}
+.chat-sub{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(255,255,255,0.3);margin-top:2px;}
+.chat-close{background:transparent;border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.8rem;transition:all 0.15s;}
+.chat-close:hover{border-color:#00F3FF;color:#00F3FF;}
+.chat-context-bar{padding:8px 14px;background:rgba(0,243,255,0.04);border-bottom:1px solid rgba(0,243,255,0.08);font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(0,243,255,0.5);display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.chat-msg{max-width:88%;padding:10px 13px;border-radius:10px;font-size:0.82rem;line-height:1.55;}
+.chat-msg.user{align-self:flex-end;background:rgba(0,243,255,0.1);border:1px solid rgba(0,243,255,0.2);color:#E2E8F0;border-radius:10px 10px 2px 10px;}
+.chat-msg.ai{align-self:flex-start;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#E2E8F0;border-radius:10px 10px 10px 2px;}
+.chat-msg.ai strong{color:#00F3FF;}
+.chat-msg.ai ul{padding-left:16px;margin:4px 0;}
+.chat-msg.ai li{margin:2px 0;}
+.chat-msg.typing{color:rgba(255,255,255,0.3);}
+.chat-msg.err{background:rgba(255,56,96,0.07);border-color:rgba(255,56,96,0.3);color:#FF6680;}
+.chat-quick{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0;}
+.chat-quick-btn{font-family:'JetBrains Mono',monospace;font-size:0.58rem;background:rgba(0,243,255,0.04);border:1px solid rgba(0,243,255,0.12);color:rgba(0,243,255,0.55);padding:4px 10px;border-radius:16px;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.chat-quick-btn:hover{background:rgba(0,243,255,0.1);border-color:#00F3FF;color:#00F3FF;}
+.chat-input-row{padding:12px 14px;border-top:1px solid rgba(255,255,255,0.07);display:flex;gap:8px;flex-shrink:0;}
+.chat-input{flex:1;background:rgba(0,0,0,0.4);border:1px solid rgba(0,243,255,0.15);color:#E2E8F0;font-family:'Inter',sans-serif;font-size:0.8rem;padding:9px 12px;border-radius:8px;outline:none;resize:none;caret-color:#00F3FF;transition:border-color 0.2s;}
+.chat-input:focus{border-color:#00F3FF;}
+.chat-send{background:rgba(0,243,255,0.15);border:1px solid rgba(0,243,255,0.3);color:#00F3FF;width:36px;height:36px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;flex-shrink:0;align-self:flex-end;}
+.chat-send:hover{background:rgba(0,243,255,0.25);}
+.chat-send:disabled{opacity:0.3;cursor:not-allowed;}
+/* Chat toggle button */
+#chat-toggle-btn{position:fixed;right:24px;bottom:80px;z-index:65;width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#00F3FF20,#BC13FE20);border:1px solid rgba(0,243,255,0.4);color:#00F3FF;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(0,243,255,0.2);transition:all 0.2s;}
+#chat-toggle-btn:hover{box-shadow:0 0 28px rgba(0,243,255,0.4);transform:scale(1.05);}
+.chat-unread{position:absolute;top:-3px;right:-3px;width:14px;height:14px;background:#FF3860;border-radius:50%;font-size:0.5rem;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;display:none;}
+</style>
+</head>
+<body class="animated-gradient-bg">
+<canvas id="cosmosCanvas"></canvas>
+
+<!-- Fullscreen chart -->
+<div id="bi-fs">
+  <button id="bi-fs-x" onclick="document.getElementById('bi-fs').classList.remove('open')">✕</button>
+  <img id="bi-fs-img" src="" alt="chart" style="max-width:96%;max-height:90vh;border-radius:8px"/>
+</div>
+
+<!-- ════════════════════════════════
+     CHAT PANEL — Consult AI
+════════════════════════════════ -->
+<div id="chat-panel">
+  <div class="chat-wrap">
+    <div class="chat-header">
+      <div>
+        <div class="chat-title">// CONSULT AI ANALYST</div>
+        <div class="chat-sub">Chat with Gemini about your data</div>
+      </div>
+      <button class="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="chat-context-bar">
+      <span>◈</span>
+      <span id="chat-ctx-txt">Amazon_Sales.csv · 50,000 rows · 2022–2023</span>
+    </div>
+    <!-- Quick prompts -->
+    <div class="chat-quick">
+      <button class="chat-quick-btn" onclick="chatSend('What are the key insights from this dataset?')">Key insights</button>
+      <button class="chat-quick-btn" onclick="chatSend('Which category has the best growth?')">Best growth</button>
+      <button class="chat-quick-btn" onclick="chatSend('Why might Middle East have highest revenue?')">Revenue analysis</button>
+      <button class="chat-quick-btn" onclick="chatSend('What queries should I run?')">Suggest queries</button>
+      <button class="chat-quick-btn" onclick="chatSend('Summarize the dataset for me')">Summarize</button>
+      <button class="chat-quick-btn" onclick="chatSend('Which payment method is most popular and why?')">Payment trends</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-msg ai">
+        👋 Hello! I'm your AI data analyst. I have full context of your <strong>Amazon Sales dataset</strong> — 50,000 records from 2022–2023 with $32.87M in revenue.<br/><br/>
+        Ask me anything about the data — trends, insights, comparisons, or what queries to run next.
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea class="chat-input" id="chat-input" rows="2" placeholder="Ask about the data... (Enter to send)"></textarea>
+      <button class="chat-send" id="chat-send-btn" onclick="chatSendFromInput()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Chat toggle button -->
+<button id="chat-toggle-btn" onclick="toggleChat()" title="Consult AI Analyst">
+  <span id="chat-unread" class="chat-unread">1</span>
+  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 00-2 2v14l4-4h12a2 2 0 002-2V5a2 2 0 00-2-2H9z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+</button>
+
+<!-- ════════════════════════════════
+     ORIGINAL: AI Analyst Sidebar
+════════════════════════════════ -->
+<aside class="fixed right-0 top-0 h-full w-80 z-[60] sidebar-transition translate-x-full" id="analystSidebar">
+  <div class="h-full glassmorphism border-l border-white/20 flex flex-col">
+    <div class="p-6 border-b border-white/10 flex justify-between items-center">
+      <div>
+        <h3 class="text-neonCyan font-bold tracking-tighter">AI ANALYST</h3>
+        <p class="text-[10px] font-mono text-slate-500 uppercase">BI Deep Query Engine</p>
+      </div>
+      <button class="text-slate-400 hover:text-white" onclick="toggleAnalystSidebar()">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+      </button>
+    </div>
+    <div class="px-4 pt-3 pb-2 border-b border-white/10">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="api-dot off" id="sb-dot"></span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.3)" id="sb-txt">Offline</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <div class="bi-stat-mini"><div class="bi-stat-mini-lbl">Rows</div><div class="bi-stat-mini-val" style="color:#00F3FF" id="sb-rows">—</div></div>
+        <div class="bi-stat-mini"><div class="bi-stat-mini-lbl">Revenue</div><div class="bi-stat-mini-val" style="color:#BC13FE" id="sb-rev">—</div></div>
+        <div class="bi-stat-mini"><div class="bi-stat-mini-lbl">Date Range</div><div class="bi-stat-mini-val" style="color:#FFD600;font-size:0.68rem" id="sb-dates">—</div></div>
+        <div class="bi-stat-mini"><div class="bi-stat-mini-lbl">YoY Growth</div><div class="bi-stat-mini-val" id="sb-growth">—</div></div>
+      </div>
+    </div>
+    <div class="px-4 pt-3 pb-2 border-b border-white/10">
+      <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-2">Recent Queries</p>
+      <div id="sb-hist" style="max-height:120px;overflow-y:auto">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.2)">No queries yet</div>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs" id="biChatHistory">
+      <div class="p-3 bg-white/5 border border-white/10 rounded-lg text-slate-300">System initialized. Backend connected.</div>
+    </div>
+    <div class="p-4 border-t border-white/10">
+      <div class="relative">
+        <input class="w-full bg-black/40 border-white/10 rounded-lg px-3 py-2 text-xs text-neonCyan focus:ring-neonCyan focus:border-neonCyan placeholder-slate-600 font-mono" id="biInput" placeholder="Query data nodes..." type="text"/>
+        <button class="absolute right-2 top-1.5 text-neonCyan" onclick="sendBiQuery()">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<button class="fixed right-6 bottom-6 z-[55] w-12 h-12 rounded-full glassmorphism border-neonCyan/50 text-neonCyan flex items-center justify-center hover:bg-neonCyan/10 transition-all shadow-[0_0_15px_rgba(0,243,255,0.3)]" onclick="toggleAnalystSidebar()">
+  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+</button>
+
+<!-- ════ ORIGINAL: App Shell ════ -->
+<main class="relative w-full h-screen overflow-hidden flex flex-col items-center justify-center" id="app">
+
+  <!-- ORIGINAL: Chat Phase -->
+  <section class="w-full max-w-2xl px-6 flex flex-col gap-6 transition-opacity duration-1000" id="phaseChat">
+    <div class="flex items-center justify-center mb-4">
+      <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-neonCyan to-neonPurple p-[2px] animate-pulse">
+        <div class="w-full h-full rounded-full bg-cosmos flex items-center justify-center">
+          <svg class="w-10 h-10 text-neonCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="glassmorphism rounded-2xl p-8 border-t border-l border-white/10 space-y-6">
+      <div class="space-y-2">
+        <h1 class="text-3xl font-extrabold text-white glow-text-cyan tracking-tight">AI Data Cosmos</h1>
+        <p class="text-slate-400 font-mono text-xs uppercase tracking-widest">Protocol Version 4.0.1 // Deep Space Analytics</p>
+      </div>
+      <div class="space-y-4 max-h-[250px] overflow-y-auto pr-2" id="chatHistory">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded bg-neonCyan/20 flex items-center justify-center flex-shrink-0 border border-neonCyan/40"><span class="text-[10px] font-bold text-neonCyan">AI</span></div>
+          <div class="bg-white/5 p-4 rounded-xl rounded-tl-none border border-white/10 text-sm leading-relaxed text-slate-200">
+            Greetings, Commander. I have detected two massive data clusters: <span class="text-neonCyan">Sales_Matrix_v1</span> and <span class="text-neonPurple">User_Behavior_Log</span>. Which shall we explore?
+          </div>
+        </div>
+      </div>
+      <div class="relative">
+        <input class="w-full bg-black/40 border-white/10 rounded-xl px-4 py-3 text-neonCyan focus:ring-neonCyan focus:border-neonCyan placeholder-slate-600 font-mono text-sm" id="chatInput" placeholder="Type command... (e.g., Explore Sales)" type="text"/>
+        <button class="absolute right-2 top-2 p-1.5 bg-neonCyan/20 hover:bg-neonCyan/40 text-neonCyan rounded-lg transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+        </button>
+      </div>
+      <div class="border-t border-white/10 pt-6 mt-2">
+        <div class="flex flex-col gap-4">
+          <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest text-center">--- OR LAUNCH NEW DATA MISSION ---</p>
+          <div class="glassmorphism border-dashed border-2 border-white/10 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-neonCyan/30 transition-all cursor-pointer group" id="dropzone">
+            <svg class="w-6 h-6 text-slate-500 group-hover:text-neonCyan transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            <span class="text-xs font-mono text-slate-400">UPLOAD CSV TO INITIALIZE NEW PLANET</span>
+            <input accept=".csv,.json" class="hidden" id="planetUpload" onchange="handlePlanetUpload(event)" type="file"/>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-center gap-4">
+      <button class="glassmorphism px-6 py-2 rounded-full text-xs font-mono text-neonCyan border border-neonCyan/20 hover:bg-neonCyan/10 transition-all" onclick="transitionToGalaxy('sales')">LOAD: SALES DATA</button>
+      <button class="glassmorphism px-6 py-2 rounded-full text-xs font-mono text-neonPurple border border-neonPurple/20 hover:bg-neonPurple/10 transition-all" onclick="transitionToGalaxy('customer')">LOAD: CUSTOMER DATA</button>
+    </div>
+  </section>
+
+  <!-- ORIGINAL: Galaxy Navigation Overlay -->
+  <div class="hud-overlay fixed inset-0 hidden transition-opacity duration-1000 opacity-0" id="galaxyOverlay">
+    <div class="absolute inset-0 border-[30px] border-white/[0.02] pointer-events-none"></div>
+    <div class="absolute top-10 left-10 hud-element">
+      <div class="glassmorphism p-4 rounded-lg neon-border-cyan flex flex-col gap-1">
+        <span class="text-[10px] text-neonCyan font-mono">SECTOR COORDINATES</span>
+        <span class="text-xl font-mono text-white" id="coordsDisplay">X: 245.21 Y: -12.4 Z: 901</span>
+      </div>
+    </div>
+    <div class="absolute top-10 right-10 hud-element text-right">
+      <div class="glassmorphism p-4 rounded-lg border-white/10">
+        <span class="text-[10px] text-slate-400 font-mono">CORE SYSTEM STATUS</span>
+        <div class="flex items-center gap-2 mt-1">
+          <span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+          <span class="text-xs font-mono text-slate-300" id="hud-sys-txt">ENGINES NOMINAL</span>
+        </div>
+      </div>
+    </div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+      <div class="w-32 h-32 border border-neonCyan rounded-full flex items-center justify-center">
+        <div class="w-1 h-1 bg-neonCyan"></div>
+        <div class="absolute w-8 h-[1px] bg-neonCyan -left-4"></div><div class="absolute w-8 h-[1px] bg-neonCyan -right-4"></div>
+        <div class="absolute h-8 w-[1px] bg-neonCyan -top-4"></div><div class="absolute h-8 w-[1px] bg-neonCyan -bottom-4"></div>
+      </div>
+    </div>
+    <div class="absolute bottom-10 left-1/2 -translate-x-1/2 hud-element">
+      <p class="text-slate-500 text-[10px] font-mono tracking-widest text-center mb-2">DRAG TO NAVIGATE // SCROLL TO ZOOM</p>
+      <div class="flex gap-4">
+        <button class="bg-neonCyan/10 hover:bg-neonCyan/20 text-neonCyan px-12 py-3 border border-neonCyan/50 rounded-md font-bold tracking-widest text-sm transition-all glow-text-cyan" onclick="revealDeepAnalytics()">INITIATE DEEP SCAN</button>
+        <button class="bg-neonPurple/10 hover:bg-neonPurple/20 text-neonPurple px-6 py-3 border border-neonPurple/50 rounded-md font-bold tracking-widest text-sm transition-all glow-text-purple" onclick="document.getElementById('planetUpload').click()">ADD PLANET</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORIGINAL: Deep Analytics HUD -->
+  <div class="fixed inset-0 z-50 bg-cosmos/90 hidden backdrop-blur-md overflow-y-auto p-10 transition-all duration-700 opacity-0 translate-y-20" id="analyticsHUD">
+    <div class="max-w-6xl mx-auto space-y-8">
+      <header class="flex justify-between items-end border-b border-white/10 pb-6">
+        <div>
+          <h2 class="text-4xl font-extrabold text-white tracking-tighter glow-text-cyan" id="hudTitle">SALES_MATRIX_01</h2>
+          <p class="text-neonCyan font-mono text-xs mt-2 uppercase" id="hud-subtitle">Deep Analytics Report // Generated by AI-Core</p>
+        </div>
+        <div class="flex gap-3 items-center flex-wrap">
+          <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:4px 12px;font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(255,255,255,0.3)"><span class="api-dot off" id="hud-dot"></span><span id="hud-api-txt">Offline</span></span>
+          <button class="text-neonCyan hover:bg-neonCyan/10 font-mono text-xs border border-neonCyan/30 px-4 py-2 rounded transition-all" onclick="toggleChat()">💬 CONSULT AI</button>
+          <button class="text-slate-500 hover:text-white font-mono text-xs border border-white/10 px-4 py-2 rounded transition-all" onclick="closeAnalytics()">TERMINATE [ESC]</button>
+        </div>
+      </header>
+
+      <!-- Live stats -->
+      <div class="hud-live-stats">
+        <div class="hud-live-card cyan"><p class="hud-lc-lbl">Total Rows</p><p class="hud-lc-val" id="hud-rows">—</p><p class="hud-lc-sub" id="hud-cols">— columns</p></div>
+        <div class="hud-live-card purple"><p class="hud-lc-lbl">Total Revenue</p><p class="hud-lc-val" id="hud-revenue">—</p><p class="hud-lc-sub" id="hud-avg-rev">avg —/order</p></div>
+        <div class="hud-live-card yellow"><p class="hud-lc-lbl">Date Range</p><p class="hud-lc-val" style="font-size:1rem" id="hud-dates">—</p><p class="hud-lc-sub" id="hud-months">— months</p></div>
+        <div class="hud-live-card green"><p class="hud-lc-lbl">YoY Growth</p><p class="hud-lc-val" id="hud-growth">—</p><p class="hud-lc-sub" id="hud-growth-sub">year over year</p></div>
+      </div>
+
+      <!-- Dataset Overview -->
+      <div class="overview-panel" id="overview-panel" style="display:none">
+        <div class="overview-title">// DATASET OVERVIEW</div>
+        <div class="overview-grid" id="overview-grid"></div>
+      </div>
+
+      <!-- Live Query Terminal — NO suggestions, just input -->
+      <div class="glassmorphism rounded-2xl p-6 relative overflow-hidden">
+        <div class="scanning-line opacity-10"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h3 class="text-xs font-mono text-neonCyan uppercase tracking-widest">// LIVE QUERY TERMINAL</h3>
+          <button onclick="toggleChat()" style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.25);color:#00F3FF;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='rgba(0,243,255,0.15)'" onmouseout="this.style.background='rgba(0,243,255,0.08)'">
+            💬 Ask AI in plain English →
+          </button>
+        </div>
+        <div class="bi-qrow">
+          <input class="bi-qinput" id="bi-main-input" placeholder="Type a data query... e.g. Show monthly revenue for 2023" autocomplete="off"/>
+          <button class="bi-runbtn" id="bi-runbtn" onclick="biRun()">▶ EXECUTE</button>
+        </div>
+        <div class="bi-hint">Ctrl+Enter execute · Esc clear · 💬 Use Consult AI for free-form conversation</div>
+        <div id="bi-output">
+          <div style="text-align:center;padding:40px;font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:rgba(255,255,255,0.15)">◈ AWAITING TRANSMISSION</div>
+        </div>
+      </div>
+
+      <!-- Overview Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="glassmorphism p-6 rounded-2xl relative overflow-hidden" style="min-height:320px">
+          <div class="scanning-line opacity-20"></div>
+          <h3 class="text-xs font-mono text-neonCyan mb-4 uppercase tracking-widest">Monthly Revenue Trend</h3>
+          <div id="hud-chart-1" style="display:flex;align-items:flex-end;gap:3px;height:230px;border-left:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);padding:0 4px 4px">
+            <div style="color:rgba(255,255,255,0.15);font-family:'JetBrains Mono',monospace;font-size:0.6rem;align-self:center;width:100%;text-align:center">Loading...</div>
+          </div>
+        </div>
+        <div class="glassmorphism p-6 rounded-2xl flex flex-col" style="min-height:320px">
+          <h3 class="text-xs font-mono text-neonPurple mb-4 uppercase tracking-widest">Category Revenue Split</h3>
+          <div id="hud-chart-2" class="flex-1 flex flex-col justify-center gap-3">
+            <div style="color:rgba(255,255,255,0.15);font-family:'JetBrains Mono',monospace;font-size:0.6rem;text-align:center">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Feed -->
+      <div class="glassmorphism rounded-2xl p-6">
+        <h3 class="text-xs font-mono text-yellow-400 mb-4 uppercase tracking-widest">Real-time Query Stream</h3>
+        <div class="space-y-2 font-mono text-[10px] h-32 overflow-hidden text-slate-500" id="dataFeed"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══ ORIGINAL Cosmos Engine (unchanged) ═══ -->
+<script>
+  const canvas=document.getElementById('cosmosCanvas');const ctx=canvas.getContext('2d');
+  let width,height,stars=[],planets=[];
+  let mouse={x:0,y:0,active:false};let camera={x:0,y:0,z:0};let targetCamera={x:0,y:0,z:0};
+  class Star{constructor(){this.init();}init(){this.x=(Math.random()-0.5)*5000;this.y=(Math.random()-0.5)*5000;this.z=Math.random()*5000;this.size=Math.random()*1.5;this.color=Math.random()>0.5?'#00F3FF':'#BC13FE';}update(){this.z-=1;if(this.z<1)this.init();}draw(){const f=1000/this.z;const x=(this.x-camera.x)*f+width/2;const y=(this.y-camera.y)*f+height/2;const s=this.size*f;if(x>0&&x<width&&y>0&&y<height){ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(x,y,s,0,Math.PI*2);ctx.fill();}}}
+  class Planet{constructor(x,y,z,sz,c,l){this.x=x;this.y=y;this.z=z;this.size=sz;this.color=c;this.label=l;this.angle=Math.random()*Math.PI*2;}update(){this.angle+=0.005;this.y+=Math.sin(this.angle)*0.1;}draw(){const f=1000/(this.z+camera.z);const x=(this.x-camera.x)*f+width/2;const y=(this.y-camera.y)*f+height/2;const s=this.size*f;if(f>0){ctx.shadowBlur=20*f;ctx.shadowColor=this.color;ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(x,y,s,0,Math.PI*2);ctx.fill();ctx.strokeStyle=this.color;ctx.lineWidth=1;ctx.globalAlpha=0.3;ctx.beginPath();ctx.ellipse(x,y,s*2.5,s*0.5,this.angle*0.1,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;if(f>0.5){ctx.shadowBlur=0;ctx.fillStyle='white';ctx.font=`${Math.floor(10*f)}px JetBrains Mono`;ctx.fillText(this.label,x+s+10,y);}}}}
+  function resize(){width=window.innerWidth;height=window.innerHeight;canvas.width=width;canvas.height=height;}
+  function initCosmos(){stars=Array.from({length:1500},()=>new Star());planets=[new Planet(500,200,1500,60,'#00F3FF','DATA_NODE_ALFA'),new Planet(-800,-300,2500,100,'#BC13FE','CORE_STORAGE'),new Planet(200,-600,800,40,'#EAB308','ANOMALY_Z')];resize();requestAnimationFrame(animate);}
+  function animate(){ctx.clearRect(0,0,width,height);camera.x+=(targetCamera.x-camera.x)*0.05;camera.y+=(targetCamera.y-camera.y)*0.05;camera.z+=(targetCamera.z-camera.z)*0.05;stars.forEach(s=>{s.update();s.draw();});planets.forEach(p=>{p.update();p.draw();});if(document.getElementById('coordsDisplay'))document.getElementById('coordsDisplay').innerText=`X:${Math.floor(camera.x)} Y:${Math.floor(camera.y)} Z:${Math.floor(camera.z)}`;requestAnimationFrame(animate);}
+  window.addEventListener('resize',resize);window.addEventListener('mousemove',e=>{if(mouse.active){targetCamera.x+=e.movementX*2;targetCamera.y+=e.movementY*2;}});window.addEventListener('mousedown',()=>mouse.active=true);window.addEventListener('mouseup',()=>mouse.active=false);window.addEventListener('wheel',e=>{targetCamera.z+=e.deltaY*5;if(targetCamera.z<100)targetCamera.z=100;});
+  initCosmos();
+</script>
+
+<!-- ═══ App Logic ═══ -->
+<script>
+const API='CLOUD_RUN_URL_PLACEHOLDER';
+const HEADERS={'Content-Type':'application/json'};
+const HGET={};
+let biHistory=[],biB64=null,biLastQ='',biLastData=null,biLastCols=null,dsStats=null;
+let chatHistory_arr=[];  // [{role,content}]
+let chatPanelOpen=false;
+
+// ── Formatters ──────────────────────────────────────────────────────
+function fmt(v){const n=parseFloat(v);if(isNaN(n))return String(v??'—');if(Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';if(Math.abs(n)>=1e3)return(n/1e3).toFixed(1)+'K';return n%1!==0?n.toFixed(2):n.toLocaleString();}
+function fmtPct(v){const n=parseFloat(v);if(isNaN(n))return'—';return`${n>0?'+':''}${n.toFixed(2)}%`;}
+function isNum(v){return v!==null&&v!==''&&!isNaN(parseFloat(v));}
+function setEl(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function setHtml(id,v){const e=document.getElementById(id);if(e)e.innerHTML=v;}
+function prettyCol(c){return c.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase());}
+
+// ══════════════════════════════════════════════════════════════════
+// CHAT PANEL
+// ══════════════════════════════════════════════════════════════════
+function toggleChat(){
+  chatPanelOpen=!chatPanelOpen;
+  const panel=document.getElementById('chat-panel');
+  panel.classList.toggle('open',chatPanelOpen);
+  // Hide unread badge
+  const badge=document.getElementById('chat-unread');
+  if(badge) badge.style.display='none';
+  if(chatPanelOpen) document.getElementById('chat-input').focus();
+}
+
+function chatAddMsg(role,content,extraClass=''){
+  const msgs=document.getElementById('chat-messages');
+  const div=document.createElement('div');
+  div.className=`chat-msg ${role} ${extraClass}`;
+  // Render markdown-lite: bold, bullets
+  div.innerHTML=content
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>')
+    .replace(/^• (.+)$/gm,'<li>$1</li>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>')
+    .replace(/\n/g,'<br/>');
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  return div;
+}
+
+async function chatSend(msg){
+  if(!msg||!msg.trim()) return;
+  const input=document.getElementById('chat-input');
+  const sendBtn=document.getElementById('chat-send-btn');
+
+  // Add user message
+  chatAddMsg('user',msg);
+  chatHistory_arr.push({role:'user',content:msg});
+  input.value='';
+  sendBtn.disabled=true;
+
+  // Typing indicator
+  const typingDiv=chatAddMsg('ai','<span style="opacity:0.5">● ● ●</span>','typing');
+
+  try{
+    const resp=await fetch(`${API}/chat`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg,history:chatHistory_arr.slice(-10)})
+    });
+    typingDiv.remove();
+
+    if(!resp.ok){
+      const e=await resp.json();
+      const code=e.detail||'';
+      if(code.includes('429')||resp.status===429){
+        chatAddMsg('ai','⏳ Rate limit reached. Please wait 60 seconds and try again.','err');
+      } else if(resp.status===401){
+        chatAddMsg('ai','🔑 Invalid API key. Check your .env file and restart the server.','err');
+      } else {
+        chatAddMsg('ai',`❌ ${e.detail||'Something went wrong. Please try again.'}`, 'err');
+      }
+      return;
+    }
+
+    const data=await resp.json();
+    const reply=data.reply||'No response.';
+    chatAddMsg('ai',reply);
+    chatHistory_arr.push({role:'assistant',content:reply});
+
+  } catch(e){
+    typingDiv.remove();
+    if(e.message.includes('fetch')||e.message.includes('network')){
+      chatAddMsg('ai','🔌 Cannot reach the server. Make sure uvicorn is running on port 8000.','err');
+    } else {
+      chatAddMsg('ai',`❌ Error: ${e.message}`,'err');
+    }
+  } finally{
+    sendBtn.disabled=false;
+  }
+}
+
+function chatSendFromInput(){
+  const input=document.getElementById('chat-input');
+  const msg=input.value.trim();
+  if(msg) chatSend(msg);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BACKEND — Health + Stats
+// ══════════════════════════════════════════════════════════════════
+async function checkHealth(){
+  try{
+    const r=await fetch(`${API}/health`);
+    const d=await r.json();
+    ['sb-dot','hud-dot'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('off');});
+    setEl('sb-txt',`Connected · ${Number(d.rows||0).toLocaleString()} rows`);
+    setEl('hud-api-txt',`Connected · ${Number(d.rows||0).toLocaleString()} rows`);
+    const s=document.getElementById('hud-sys-txt');if(s)s.textContent='BACKEND NOMINAL';
+  } catch{
+    ['sb-dot','hud-dot'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('off');});
+    setEl('sb-txt','Offline — run: uvicorn backend.main:app --reload');
+    setEl('hud-api-txt','Offline');
+  }
+}
+
+async function loadStats(){
+  try{
+    const r=await fetch(`${API}/stats`);
+    if(!r.ok) return;
+    dsStats=await r.json();
+    applyStats(dsStats);
+    renderOverviewPanel(dsStats);
+    // Update chat context bar
+    if(dsStats.date_min&&dsStats.date_max){
+      setEl('chat-ctx-txt',`${dsStats.filename||'Amazon_Sales.csv'} · ${Number(dsStats.total_rows).toLocaleString()} rows · ${dsStats.date_min_m}–${dsStats.date_max_m}`);
+    }
+  } catch(e){console.log('Stats err:',e);}
+}
+
+function applyStats(s){
+  if(!s) return;
+  setEl('sb-rows',Number(s.total_rows||0).toLocaleString());
+  setEl('sb-rev',fmt(s.total_revenue||0));
+  setEl('sb-dates',s.date_min_m&&s.date_max_m?`${s.date_min_m}→${s.date_max_m}`:'—');
+  const gp=s.growth_pct;
+  if(gp!==undefined){
+    const cls=gp>0?'growth-pos':gp<0?'growth-neg':'growth-neu';
+    setHtml('sb-growth',`<span class="${cls}">${fmtPct(gp)}</span>`);
+    setHtml('hud-growth',`<span class="${cls}" style="font-size:1.5rem;font-weight:800">${fmtPct(gp)}</span>`);
+    setEl('hud-growth-sub',`${s.growth_y1||''}→${s.growth_y2||''} YoY`);
+  }
+  setEl('hud-rows',Number(s.total_rows||0).toLocaleString());
+  setEl('hud-cols',`${s.total_columns||0} columns`);
+  setEl('hud-revenue',fmt(s.total_revenue||0));
+  setEl('hud-avg-rev',`avg ${fmt(s.avg_revenue||0)}/order`);
+  if(s.date_min&&s.date_max){setEl('hud-dates',`${s.date_min_m||s.date_min} → ${s.date_max_m||s.date_max}`);setEl('hud-months',`${s.total_months||0} months`);}
+  if(s.date_min&&s.date_max)setEl('hud-subtitle',`Amazon Sales · ${s.date_min} → ${s.date_max} · ${Number(s.total_rows).toLocaleString()} records`);
+}
+
+function renderOverviewPanel(s){
+  const panel=document.getElementById('overview-panel');
+  const grid=document.getElementById('overview-grid');
+  if(!panel||!grid) return;
+  const items=[];
+  if(s.total_quantity) items.push({lbl:'Total Units Sold',val:Number(s.total_quantity).toLocaleString(),cls:'cyan'});
+  if(s.avg_rating)     items.push({lbl:'Avg Rating',val:`${s.avg_rating} ⭐`,cls:'yellow'});
+  if(s.best_month)     items.push({lbl:'Best Month',val:s.best_month,cls:'green',sub:fmt(s.best_month_rev)});
+  if(s.monthly_growth_pct!==undefined) items.push({lbl:'Monthly Growth',val:fmtPct(s.monthly_growth_pct),cls:parseFloat(s.monthly_growth_pct)>=0?'green':'',sub:'first vs last 3 months'});
+  if(s.categories){const top=Object.entries(s.categories)[0];if(top)items.push({lbl:'Top Category',val:top[0],cls:'purple',sub:fmt(top[1])});}
+  if(s.regions){const top=Object.entries(s.regions)[0];if(top)items.push({lbl:'Top Region',val:top[0],cls:'cyan',sub:fmt(top[1])});}
+  grid.innerHTML=items.map(i=>`<div class="ov-item"><div class="ov-lbl">${i.lbl}</div><div class="ov-val ${i.cls||''}">${i.val}</div>${i.sub?`<div style="font-family:'JetBrains Mono',monospace;font-size:0.57rem;color:rgba(255,255,255,0.2);margin-top:2px">${i.sub}</div>`:''}</div>`).join('');
+  panel.style.display='block';
+}
+
+async function loadOverviewCharts(){
+  try{
+    const r1=await fetch(`${API}/query`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:'Show monthly total revenue'})});
+    if(r1.ok){
+      const d1=await r1.json();
+      if(!d1.error&&d1.data&&d1.data.length){
+        const yC=d1.columns[1];const xC=d1.columns[0];
+        const vals=d1.data.map(r=>parseFloat(r[yC])||0);const maxV=Math.max(...vals);
+        const colors=['#00F3FF','#0099CC','#0077AA','#005588','#003366','#BC13FE','#8800CC','#660099','#440077','#220044','#FF6B35','#CC5500'];
+        document.getElementById('hud-chart-1').innerHTML=d1.data.map((row,i)=>{
+          const h=Math.round(vals[i]/maxV*100);
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:default" title="${row[xC]}: ${fmt(row[yC])}">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#00F3FF;opacity:0.7">${h>70?fmt(vals[i]):''}</span>
+            <div style="width:100%;background:${colors[i%colors.length]};border-radius:2px 2px 0 0;height:${h}%;opacity:0.75;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.75"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:0.48rem;color:rgba(255,255,255,0.2);writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap">${String(row[xC]).slice(-5)}</span>
+          </div>`;
+        }).join('');
+      }
+    }
+    const r2=await fetch(`${API}/query`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:'Revenue by product category'})});
+    if(r2.ok){
+      const d2=await r2.json();
+      if(!d2.error&&d2.data&&d2.data.length){
+        const yC=d2.columns[1];const xC=d2.columns[0];
+        const vals=d2.data.map(r=>parseFloat(r[yC])||0);const maxV=Math.max(...vals);
+        const colors=['#00F3FF','#BC13FE','#FF6B35','#00FF9D','#FFD600','#FF3860'];
+        document.getElementById('hud-chart-2').innerHTML=d2.data.map((row,i)=>`
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace;font-size:0.65rem;margin-bottom:3px">
+              <span style="color:rgba(255,255,255,0.7);font-weight:600">${row[xC]}</span>
+              <span style="color:${colors[i%colors.length]};font-weight:700">${fmt(row[yC])}</span>
+            </div>
+            <div style="width:100%;height:5px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden">
+              <div style="height:100%;background:${colors[i%colors.length]};border-radius:3px;width:${Math.round(vals[i]/maxV*100)}%"></div>
+            </div>
+          </div>`).join('');
+      }
+    }
+  } catch(e){console.log('Overview err:',e);}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// QUERY RUNNER — with smart friendly error display
+// ══════════════════════════════════════════════════════════════════
+function showLoading(){
+  const steps=['🤖 Routing to Gemini AI...','⚙  Synthesizing SQL...','🗄  Executing on dataset...','🎨  Rendering chart...'];
+  let h=`<div class="bi-load-bar"><div class="bi-load-bar-inner"></div></div>`;
+  steps.forEach((s,i)=>h+=`<div class="bi-step" id="bst${i}" style="animation-delay:${i*0.5}s"><div class="bi-step-dot ${i===0?'spin':''}" id="bsn${i}"></div><span>${s}</span></div>`);
+  document.getElementById('bi-output').innerHTML=h;
+  let cur=0;
+  const iv=setInterval(()=>{
+    const p=document.getElementById(`bsn${cur}`);if(p){p.classList.remove('spin');p.classList.add('done');p.textContent='✓';}
+    cur++;if(cur>=steps.length){clearInterval(iv);return;}
+    const n=document.getElementById(`bsn${cur}`);if(n)n.classList.add('spin');
+  },900);
+  return iv;
+}
+
+// Friendly error display based on error code
+function showSmartError(d, originalQ){
+  const CODE_MAP={
+    NO_DATA:{icon:'📂',type:'info',title:'No Dataset Loaded',msg:'The server hasn\'t loaded a dataset yet.',hint:'Check your terminal — the server auto-loads Amazon_Sales.csv on startup. If missing, restart uvicorn.'},
+    NO_KEY:{icon:'🔑',type:'warn',title:'Gemini API Key Missing',msg:'No API key found in the .env file.',hint:'Open .env in your project folder and set:\nGEMINI_API_KEY=your_key_here\nThen restart: uvicorn backend.main:app --reload'},
+    RATE_LIMIT:{icon:'⏳',type:'warn',title:'Rate Limit Reached',msg:'Gemini free tier has a per-minute limit.',hint:'Wait 60 seconds then try again. The backend will auto-retry on the next request.'},
+    SQL_GEN_FAILED:{icon:'🤖',type:'warn',title:'Could Not Generate SQL',msg:d.message||'Gemini had trouble understanding the question.',hint:'Try rephrasing. Example:\n"Show total revenue by product category"\n"Top 5 categories by revenue"\n"Monthly sales trend for 2023"'},
+    SQL_EXEC_FAILED:{icon:'⚙',type:'fail',title:'Query Execution Failed',msg:d.message||'The generated SQL had an error.',hint:'Try a simpler question. The SQL below was generated — you can inspect it.'},
+  };
+  const cfg=CODE_MAP[d.code]||{icon:'❌',type:'fail',title:'Query Failed',msg:d.message||'Something went wrong.',hint:d.hint||'Try rephrasing your question or check the terminal for errors.'};
+  let h=`<div class="bi-err-card ${cfg.type}">
+    <div class="bi-err-icon">${cfg.icon}</div>
+    <div class="bi-err-title">${cfg.title}</div>
+    <div class="bi-err-msg">${cfg.msg}</div>
+    <div class="bi-err-hint"><span style="color:rgba(255,255,255,0.4);font-size:0.65rem;display:block;margin-bottom:4px">// HOW TO FIX</span>${cfg.hint.replace(/\n/g,'<br/>')}</div>`;
+  if(d.sql) h+=`<div class="bi-err-sql">${d.sql.replace(/</g,'&lt;')}</div>`;
+  if(d.code==='SQL_GEN_FAILED'||d.code==='SQL_EXEC_FAILED'){
+    h+=`<button class="bi-retry-btn" onclick="biRetry('${encodeURIComponent(originalQ||'')}')">↻ Try Again</button>`;
+  }
+  h+=`</div>`;
+  document.getElementById('bi-output').innerHTML=h;
+}
+
+function biRetry(enc){
+  const q=decodeURIComponent(enc||'');
+  if(q){document.getElementById('bi-main-input').value=q;biRun();}
+}
+
+async function biRun(){
+  const q=(document.getElementById('bi-main-input').value||'').trim();
+  if(!q) return;
+  biLastQ=q;
+  const btn=document.getElementById('bi-runbtn');
+  btn.disabled=true;btn.textContent='⏳ SCANNING...';
+  const iv=showLoading();
+  feedLog(`QUERY: ${q}`);
+  try{
+    const resp=await fetch(`${API}/query`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    clearInterval(iv);
+    // We now always get 200 with either data or {error:true,code:...}
+    const data=await resp.json();
+    if(data.error){
+      showSmartError(data,q);
+      feedLog(`ERROR: ${data.code}`);
+      return;
+    }
+    renderResult(q,data);
+    biHistory.unshift({question:q,sql:data.sql,rows:data.rows});
+    updateSbHist();
+    feedLog(`RESULT: ${data.rows} rows returned`);
+  } catch(e){
+    clearInterval(iv);
+    // Network / CORS / server down
+    showSmartError({code:'NET_ERROR',icon:'🔌',type:'fail',
+      title:'Cannot Reach Server',
+      message:e.message,
+      hint:'Make sure uvicorn is running:\n\nvenv\\Scripts\\activate\nuvicorn backend.main:app --reload --port 8000\n\nThen open http://localhost:8000/health to verify.'
+    },q);
+  } finally{btn.disabled=false;btn.textContent='▶ EXECUTE';}
+}
+
+function renderResult(q,d){
+  biB64=d.chart_b64||null;biLastData=d.data;biLastCols=d.columns;
+  const{sql,rows,columns,data:rows_data,chart_b64,chart_meta,stats}=d;
+  let h=`<div class="bi-result">`;
+  h+=`<div class="bi-q-banner"><div class="bi-q-lbl">// QUERY TRANSMISSION</div><div class="bi-q-txt">${q}</div></div>`;
+  const sqlE=(sql||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  h+=`<div class="bi-sql-block"><div class="bi-sql-hdr" onclick="toggleSQL()"><div style="display:flex;align-items:center;gap:8px"><span style="color:#BC13FE">◈</span>SQL_OUTPUT<span class="bi-safe-tag">✓ SELECT ONLY</span><span>${(rows||0).toLocaleString()} ROWS</span></div><div style="display:flex;gap:6px;align-items:center"><button class="bi-ibtn" onclick="event.stopPropagation();cpSQL(\`${encodeURIComponent(sql||'')}\`)">COPY</button><span id="sql-tog" style="font-family:'JetBrains Mono',monospace;font-size:0.58rem">▼ SHOW</span></div></div><div class="bi-sql-body" id="sql-body">${sqlE}</div></div>`;
+  if(stats)h+=`<div class="bi-stats-row"><div class="bi-sc c1"><div class="bi-sc-lbl">Total</div><div class="bi-sc-val">${fmt(stats.total)}</div><div class="bi-sc-sub">${(columns||[])[columns.length-1]||''}</div></div><div class="bi-sc c2"><div class="bi-sc-lbl">Average</div><div class="bi-sc-val">${fmt(stats.average)}</div><div class="bi-sc-sub">per ${(columns||[])[0]||'row'}</div></div><div class="bi-sc c3"><div class="bi-sc-lbl">Peak</div><div class="bi-sc-val">${fmt(stats.max_val)}</div><div class="bi-sc-sub">${stats.max_label||''}</div></div><div class="bi-sc c4"><div class="bi-sc-lbl">Floor</div><div class="bi-sc-val">${fmt(stats.min_val)}</div><div class="bi-sc-sub">${stats.min_label||''}</div></div></div>`;
+  const ct=(chart_meta?.chart_type||'bar').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  h+=`<div class="bi-chart-card"><div class="bi-chart-tb"><div class="bi-tabs">${['Bar','Line','Area','Donut','Horizontal Bar','Scatter'].map(t=>`<button class="bi-tab${t===ct?' active':''}" onclick="switchChart(this,'${t.toLowerCase().replace(' ','_')}')">${t}</button>`).join('')}</div><div style="display:flex;gap:5px"><button class="bi-ibtn" onclick="openFS()">⛶</button><button class="bi-ibtn" onclick="dlChart()">↓ PNG</button></div></div><div class="bi-chart-body" id="bi-chart-body">`;
+  if(chart_b64)h+=`<img src="data:image/png;base64,${chart_b64}" id="bi-chart-img" alt="chart"/>`;
+  else h+=`<div style="text-align:center;padding:36px;font-family:'JetBrains Mono',monospace;font-size:0.62rem;color:rgba(255,255,255,0.2)">[ No chart for this query ]</div>`;
+  h+=`</div>`;if(chart_meta?.reason)h+=`<div class="bi-chart-reason">// ${chart_meta.reason}</div>`;h+=`</div>`;
+  if(rows_data&&rows_data.length>0){
+    const cols=columns||Object.keys(rows_data[0]);
+    h+=`<div class="bi-table-card"><div class="bi-table-hdr"><span style="color:#00F3FF">◈ DATA_MATRIX</span><div style="display:flex;align-items:center;gap:8px"><span>${Math.min(rows_data.length,200).toLocaleString()} of ${(rows||0).toLocaleString()}</span><button class="bi-ibtn" onclick="dlCSV()">↓ CSV</button></div></div><div class="bi-tbl-scroll bi-tbl"><table><thead><tr>${cols.map(c=>`<th>${prettyCol(c)}</th>`).join('')}</tr></thead><tbody>${rows_data.slice(0,200).map(row=>`<tr>${cols.map(c=>{const v=row[c];return`<td class="${isNum(v)?'bi-num':''}">${isNum(v)?fmt(v):(v??'—')}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  }
+  h+=`<div style="font-family:'JetBrains Mono',monospace;font-size:0.57rem;color:rgba(255,255,255,0.15);text-align:right;padding:2px 0 10px">✓ COMPLETE · ${(rows||0).toLocaleString()} ROWS · QUERY #${biHistory.length+1}</div></div>`;
+  document.getElementById('bi-output').innerHTML=h;
+}
+
+function toggleSQL(){const b=document.getElementById('sql-body'),t=document.getElementById('sql-tog');if(!b)return;b.classList.toggle('open');if(t)t.textContent=b.classList.contains('open')?'▲ HIDE':'▼ SHOW';}
+function cpSQL(enc){navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>alert('SQL copied!'));}
+async function switchChart(btn,newType){
+  document.querySelectorAll('.bi-tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');
+  if(!biLastQ) return;
+  const body=document.getElementById('bi-chart-body');if(body)body.style.opacity='0.4';
+  try{
+    const r=await fetch(`${API}/query`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:biLastQ+` as a ${newType} chart`})});
+    if(!r.ok) return;
+    const data=await r.json();
+    if(!data.error&&data.chart_b64){biB64=data.chart_b64;const img=document.getElementById('bi-chart-img');if(img)img.src=`data:image/png;base64,${data.chart_b64}`;else if(body)body.innerHTML=`<img src="data:image/png;base64,${data.chart_b64}" id="bi-chart-img" alt="chart" style="width:100%;border-radius:6px"/>`;}
+  } catch{}
+  if(body)body.style.opacity='1';
+}
+function openFS(){if(!biB64)return;document.getElementById('bi-fs-img').src=`data:image/png;base64,${biB64}`;document.getElementById('bi-fs').classList.add('open');}
+function dlChart(){if(!biB64)return;const a=document.createElement('a');a.href=`data:image/png;base64,${biB64}`;a.download='chart.png';a.click();}
+function dlCSV(){if(!biLastData||!biLastCols)return;const csv=[biLastCols.join(','),...biLastData.map(r=>biLastCols.map(c=>`"${r[c]??''}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='result.csv';a.click();}
+function updateSbHist(){
+  const el=document.getElementById('sb-hist');if(!el)return;
+  if(!biHistory.length){el.innerHTML='<div style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;color:rgba(255,255,255,0.2)">No queries yet</div>';return;}
+  el.innerHTML=biHistory.slice(0,5).map(h=>`<div style="padding:5px 7px;border-radius:5px;cursor:pointer;margin-bottom:2px;transition:background 0.15s" onmouseover="this.style.background='rgba(0,243,255,0.04)'" onmouseout="this.style.background=''" onclick="rerun('${encodeURIComponent(h.question)}')"><div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:rgba(255,255,255,0.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.question}</div><div style="font-family:'JetBrains Mono',monospace;font-size:0.57rem;color:#00FF9D">${(h.rows||0).toLocaleString()} rows</div></div>`).join('');
+}
+function rerun(enc){document.getElementById('bi-main-input').value=decodeURIComponent(enc);biRun();}
+function feedLog(txt){const df=document.getElementById('dataFeed');if(!df)return;const l=document.createElement('div');l.innerText=`> ${txt} [${new Date().toLocaleTimeString()}]`;df.prepend(l);if(df.childNodes.length>20)df.lastChild.remove();}
+
+// ── ORIGINAL functions ───────────────────────────────────────────
+const phaseChat=document.getElementById('phaseChat'),galaxyOverlay=document.getElementById('galaxyOverlay'),analyticsHUD=document.getElementById('analyticsHUD'),chatInput=document.getElementById('chatInput'),chatHistoryEl=document.getElementById('chatHistory'),dropzone=document.getElementById('dropzone'),planetUpload=document.getElementById('planetUpload'),analystSidebar=document.getElementById('analystSidebar'),biChatHistory=document.getElementById('biChatHistory'),biInput=document.getElementById('biInput');
+dropzone.addEventListener('click',()=>planetUpload.click());
+function appendToChat(text,isAi=true){const div=document.createElement('div');div.className='flex items-start gap-3';div.innerHTML=isAi?`<div class="w-8 h-8 rounded bg-neonCyan/20 flex items-center justify-center flex-shrink-0 border border-neonCyan/40"><span class="text-[10px] font-bold text-neonCyan">AI</span></div><div class="bg-white/5 p-4 rounded-xl rounded-tl-none border border-white/10 text-sm leading-relaxed text-slate-200">${text}</div>`:`<div class="ml-auto bg-neonCyan/20 p-4 rounded-xl rounded-tr-none border border-neonCyan/40 text-sm leading-relaxed text-white">${text}</div>`;chatHistoryEl.appendChild(div);chatHistoryEl.scrollTop=chatHistoryEl.scrollHeight;}
+function sendBiQuery(){const val=biInput.value.trim();if(!val)return;const u=document.createElement('div');u.className='p-3 bg-neonCyan/10 border border-neonCyan/20 rounded-lg text-white text-right';u.innerText=val;biChatHistory.appendChild(u);biInput.value='';if(!analyticsHUD.classList.contains('hidden')){document.getElementById('bi-main-input').value=val;biRun();}setTimeout(()=>{const a=document.createElement('div');a.className='p-3 bg-white/5 border border-white/10 rounded-lg text-slate-300';a.innerHTML=`<span class="text-neonCyan">ANALYST:</span> Query transmitted.`;biChatHistory.appendChild(a);biChatHistory.scrollTop=biChatHistory.scrollHeight;},400);}
+biInput.addEventListener('keypress',e=>{if(e.key==='Enter')sendBiQuery();});
+function transitionToGalaxy(dataset){phaseChat.classList.add('opacity-0');setTimeout(()=>{phaseChat.classList.add('hidden');galaxyOverlay.classList.remove('hidden');setTimeout(()=>galaxyOverlay.classList.add('opacity-100'),100);targetCamera.z=1000;const t={sales:'SALES_MATRIX_01',customer:'USER_BEHAVIOR_REPORT',custom_upload:'USER_DEFINED_GALAXY'};document.getElementById('hudTitle').innerText=t[dataset]||'DATA_STREAM_ALPHA';},1000);}
+function revealDeepAnalytics(){analyticsHUD.classList.remove('hidden');setTimeout(()=>{analyticsHUD.classList.remove('opacity-0','translate-y-20');startDataFeed();checkHealth();loadStats();setTimeout(loadOverviewCharts,800);},50);}
+function closeAnalytics(){analyticsHUD.classList.add('opacity-0','translate-y-20');setTimeout(()=>analyticsHUD.classList.add('hidden'),700);}
+function startDataFeed(){if(window.dfIv)clearInterval(window.dfIv);const logs=["FETCHING: Sector 459-892-12","DECRYPTING: Alpha Node packets","VALIDATING: Integrity check OK","SYNCING: FastAPI connection","GEMINI: SQL generation active","QUERY: SELECT product_category...","RESULT: 6 rows returned in 0.3ms","GROWTH: +0.54% YoY detected"];window.dfIv=setInterval(()=>feedLog(logs[Math.floor(Math.random()*logs.length)]),1000);}
+function handlePlanetUpload(event){const file=event.target.files[0];if(file){appendToChat(`Initializing: ${file.name}...`,true);setTimeout(()=>{appendToChat(`Parsing ${file.name}...`,true);planets.push(new Planet((Math.random()-0.5)*1000,(Math.random()-0.5)*1000,1200,30+Math.random()*50,'#F43F5E',file.name.toUpperCase().replace(/\.[^/.]+$/,'')));const fd=new FormData();fd.append('file',file);fetch(`${API}/upload`,{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.success){appendToChat(`Loaded: ${d.rows.toLocaleString()} rows`,true);if(d.stats){dsStats=d.stats;applyStats(d.stats);renderOverviewPanel(d.stats);}applyStats(d.stats);}}).catch(()=>{});setTimeout(()=>{appendToChat('Planet deployed!',true);transitionToGalaxy('custom_upload');},1500);},1000);}}
+function toggleAnalystSidebar(){analystSidebar.classList.toggle('translate-x-full');}
+chatInput.addEventListener('keypress',e=>{if(e.key==='Enter'&&chatInput.value.trim()!==''){const v=chatInput.value;appendToChat(v,false);chatInput.value='';setTimeout(()=>{if(v.toLowerCase().includes('explore')||v.toLowerCase().includes('sales')){appendToChat("Initializing Warp Drive...");setTimeout(()=>transitionToGalaxy('sales'),1500);}else if(v.toLowerCase().includes('upload')){appendToChat("Redirecting to upload port...");planetUpload.click();}else{appendToChat("Command received. Analyzing...");}},1000);}});
+document.getElementById('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();chatSendFromInput();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const fs=document.getElementById('bi-fs');if(fs.classList.contains('open')){fs.classList.remove('open');return;}if(chatPanelOpen){toggleChat();return;}closeAnalytics();}if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();const inp=document.getElementById('bi-main-input');if(inp&&document.activeElement===inp)biRun();}});
+
+// Boot
+checkHealth();
+</script>
+</body>
+</html>
