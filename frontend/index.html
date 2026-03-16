@@ -352,6 +352,7 @@ canvas{display:block;position:absolute;top:0;left:0;z-index:0;}
         </div>
         <div class="flex gap-3 items-center flex-wrap">
           <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:4px 12px;font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(255,255,255,0.3)"><span class="api-dot off" id="hud-dot"></span><span id="hud-api-txt">Offline</span></span>
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:4px 12px;font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(255,255,255,0.3)" id="hud-rl-badge" title="Gemini API calls remaining this minute">⚡ <span id="hud-rl-txt">—/min</span></span>
           <button class="text-neonCyan hover:bg-neonCyan/10 font-mono text-xs border border-neonCyan/30 px-4 py-2 rounded transition-all" onclick="toggleChat()">💬 CONSULT AI</button>
           <button class="text-slate-500 hover:text-white font-mono text-xs border border-white/10 px-4 py-2 rounded transition-all" onclick="closeAnalytics()">TERMINATE [ESC]</button>
         </div>
@@ -544,11 +545,18 @@ async function checkHealth(){
     const d=await r.json();
     ['sb-dot','hud-dot'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('off');});
     setEl('sb-txt',`Connected · ${Number(d.rows||0).toLocaleString()} rows`);
-    setEl('hud-api-txt',`Connected · ${Number(d.rows||0).toLocaleString()} rows`);
+    setEl('hud-api-txt',`Connected · ${Number(d.rows||0).toLocaleString()} rows · ${d.database||'pandas'}`);
     const s=document.getElementById('hud-sys-txt');if(s)s.textContent='BACKEND NOMINAL';
+    // Rate limit status
+    if(d.rate_limit){
+      const rl=d.rate_limit;
+      const pct=Math.round((rl.calls_this_minute/rl.max_per_minute)*100);
+      const color=pct>80?'#FF3860':pct>50?'#FFD600':'#00FF9D';
+      setHtml('hud-rl-txt',`<span style="color:${color}">${rl.minute_remaining}/${rl.max_per_minute}/min</span>`);
+    }
   } catch{
     ['sb-dot','hud-dot'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('off');});
-    setEl('sb-txt','Offline — run: uvicorn backend.main:app --reload');
+    setEl('sb-txt','Offline — backend not running');
     setEl('hud-api-txt','Offline');
   }
 }
@@ -663,18 +671,21 @@ function showLoading(){
 // Friendly error display based on error code
 function showSmartError(d, originalQ){
   const CODE_MAP={
-    NO_DATA:{icon:'📂',type:'info',title:'No Dataset Loaded',msg:'The server hasn\'t loaded a dataset yet.',hint:'Check your terminal — the server auto-loads Amazon_Sales.csv on startup. If missing, restart uvicorn.'},
-    NO_KEY:{icon:'🔑',type:'warn',title:'Gemini API Key Missing',msg:'No API key found in the .env file.',hint:'Open .env in your project folder and set:\nGEMINI_API_KEY=your_key_here\nThen restart: uvicorn backend.main:app --reload'},
-    RATE_LIMIT:{icon:'⏳',type:'warn',title:'Rate Limit Reached',msg:'Gemini free tier has a per-minute limit.',hint:'Wait 60 seconds then try again. The backend will auto-retry on the next request.'},
+    NO_DATA:{icon:'📂',type:'info',title:'No Dataset Loaded',msg:'The server hasn\'t loaded a dataset yet.',hint:'The server auto-loads Amazon_Sales.csv on startup.'},
+    NO_KEY:{icon:'🔑',type:'warn',title:'Gemini API Key Missing',msg:'No API key found.',hint:'Set GEMINI_API_KEY in Render Environment Variables.'},
+    API_KEY_LEAKED:{icon:'🚨',type:'fail',title:'API Key Leaked',msg:'Your Gemini key was flagged as compromised.',hint:'Generate a new key at https://aistudio.google.com/apikey and update it in Render → Environment.'},
+    RATE_LIMIT:{icon:'⏳',type:'warn',title:'Rate Limit — Please Wait',msg:d.message||'Too many requests this minute.',hint:d.hint||'Wait 60 seconds and try again.',wait:d.wait_seconds||60},
+    RATE_LIMIT_DAY:{icon:'📅',type:'warn',title:'Daily Quota Reached',msg:'All 1400 daily Gemini requests used.',hint:'Quota resets at midnight UTC. Try again tomorrow or upgrade your Gemini plan.'},
     SQL_GEN_FAILED:{icon:'🤖',type:'warn',title:'Could Not Generate SQL',msg:d.message||'Gemini had trouble understanding the question.',hint:'Try rephrasing. Example:\n"Show total revenue by product category"\n"Top 5 categories by revenue"\n"Monthly sales trend for 2023"'},
-    SQL_EXEC_FAILED:{icon:'⚙',type:'fail',title:'Query Execution Failed',msg:d.message||'The generated SQL had an error.',hint:'Try a simpler question. The SQL below was generated — you can inspect it.'},
+    SQL_EXEC_FAILED:{icon:'⚙',type:'fail',title:'Query Execution Failed',msg:d.message||'The generated SQL had an error.',hint:'Try a simpler question.'},
   };
   const cfg=CODE_MAP[d.code]||{icon:'❌',type:'fail',title:'Query Failed',msg:d.message||'Something went wrong.',hint:d.hint||'Try rephrasing your question or check the terminal for errors.'};
   let h=`<div class="bi-err-card ${cfg.type}">
     <div class="bi-err-icon">${cfg.icon}</div>
     <div class="bi-err-title">${cfg.title}</div>
     <div class="bi-err-msg">${cfg.msg}</div>
-    <div class="bi-err-hint"><span style="color:rgba(255,255,255,0.4);font-size:0.65rem;display:block;margin-bottom:4px">// HOW TO FIX</span>${cfg.hint.replace(/\n/g,'<br/>')}</div>`;
+    <div class="bi-err-hint"><span style="color:rgba(255,255,255,0.4);font-size:0.65rem;display:block;margin-bottom:4px">// HOW TO FIX</span>${cfg.hint.replace(/\n/g,'<br/>')}</div>
+    ${cfg.wait?`<div id="rl-timer" style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;color:#FFD600;margin-top:10px;padding:8px;background:rgba(255,215,0,0.07);border-radius:6px;text-align:center">⏳ Auto-retry in <span id="rl-countdown">${cfg.wait}</span>s</div>`:''}`;
   if(d.sql) h+=`<div class="bi-err-sql">${d.sql.replace(/</g,'&lt;')}</div>`;
   if(d.code==='SQL_GEN_FAILED'||d.code==='SQL_EXEC_FAILED'){
     h+=`<button class="bi-retry-btn" onclick="biRetry('${encodeURIComponent(originalQ||'')}')">↻ Try Again</button>`;
@@ -686,6 +697,26 @@ function showSmartError(d, originalQ){
 function biRetry(enc){
   const q=decodeURIComponent(enc||'');
   if(q){document.getElementById('bi-main-input').value=q;biRun();}
+}
+
+// Auto countdown for rate limit
+function startRLCountdown(wait, question){
+  let left = wait;
+  const el = document.getElementById('rl-countdown');
+  if(!el) return;
+  const iv = setInterval(()=>{
+    left--;
+    if(el) el.textContent = left;
+    if(left <= 0){
+      clearInterval(iv);
+      const timerDiv = document.getElementById('rl-timer');
+      if(timerDiv) timerDiv.innerHTML = '✅ Retrying now...';
+      setTimeout(()=>{
+        document.getElementById('bi-main-input').value = question;
+        biRun();
+      }, 500);
+    }
+  }, 1000);
 }
 
 async function biRun(){
