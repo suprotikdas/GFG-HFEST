@@ -1,7 +1,7 @@
-# AI Data Cosmos Explorer — VS Code Setup
+# AI Data Cosmos Explorer
 
 Full-stack AI Sales Analytics app.
-Frontend: Original AI Data Cosmos HTML (unchanged)
+Frontend: Original AI Data Cosmos HTML 
 Backend:  FastAPI + Gemini AI + Pandas/DuckDB
 
 ## Project Structure
@@ -10,7 +10,7 @@ Backend:  FastAPI + Gemini AI + Pandas/DuckDB
 ai_sales_vscode/
 ├── backend/
 │   ├── __init__.py
-│   └── main.py          ← FastAPI server (all logic from Colab notebook)
+│   └── main.py          ← FastAPI server 
 ├── frontend/
 │   └── index.html       ← Original AI Data Cosmos frontend (unchanged)
 ├── data/
